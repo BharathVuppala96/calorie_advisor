@@ -2,40 +2,43 @@
 import streamlit as st  # for creating the web app
 from dotenv import load_dotenv  # for loading API key from .env file
 import os
-import google.generativeai as genai  # Google's AI model
+from openai import OpenAI  
 from PIL import Image  # for handling images
+import base64
 
-# Load the API key from .env file
-load_dotenv()
+# # Load the API key from .env file
+# load_dotenv()
 
-# Set up the Google Gemini AI with your API key
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# # Set up the Google Gemini AI with your API key
+# genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# Function to get AI response about the food image
-def get_gemini_response(image, prompt):
-    """Send image to Google's AI and get calorie information"""
-    try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
-        response = model.generate_content([image[0], prompt])
-        return response.text
-    except Exception as e:
-        return f"Error: {str(e)}"
+client = OpenAI()
 
-# Function to prepare the uploaded image for AI processing
 def prepare_image(uploaded_file):
-    """Convert uploaded image to format required by Google's AI"""
+    """Convert uploaded image to base64 for GPT-4o"""
     if uploaded_file is not None:
         bytes_data = uploaded_file.getvalue()
-        image_parts = [
-            {
-                "mime_type": uploaded_file.type,
-                "data": bytes_data
-            }
-        ]
-        return image_parts
-    else:
-        return None
+        return base64.b64encode(bytes_data).decode("utf-8")
+    return None
 
+def get_gpt_response(image_b64, prompt):
+    """Send image to GPT-4o and get calorie info"""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+                    ]
+                }
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error: {str(e)}"
 # Main web app
 def main():
     # Set up the webpage
@@ -81,7 +84,7 @@ def main():
                 # Get and display AI response
                 image_data = prepare_image(uploaded_file)
                 if image_data is not None:
-                    response = get_gemini_response(image_data, prompt)
+                    response = get_gpt_response(image_data, prompt)
                     st.success("Analysis Complete!")
                     st.write(response)
                 else:
